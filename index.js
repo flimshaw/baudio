@@ -17,14 +17,14 @@ module.exports = function (opts, fn) {
 
 function B (opts, fn) {
     Readable.call(this);
-    
+
     this.readable = true;
     this.rate = opts.rate || 44000;
     this._fn = fn;
-    
+
     this.t = 0;
     this.i = 0;
-    
+
     this._ticks = 0;
 }
 
@@ -33,24 +33,25 @@ inherits(B, Readable);
 B.prototype._read = function read (bytes) {
     if (!bytes) bytes = 4096;
     var self = this;
-    
+
     var buf = new Buffer(Math.floor(bytes));
     function clamp (x) {
         return Math.max(Math.min(x, Math.pow(2,15)-1), -Math.pow(2,15));
     }
-    
-    for (var i = 0; i < buf.length; i += 2) {
+
+    for (var i = 0; i < buf.length; i += 4) {
         var t = self.t + Math.floor(i / 2) / self.rate;
         var counter = self.i + Math.floor(i / 2);
-        
+
         var n = this._fn.call(self, t, counter);
-        if (isNaN(n)) n = 0;
-        buf.writeInt16LE(clamp(signed(n)), i);
+        // if (isNaN(n)) n = 0;
+        buf.writeInt16LE(clamp(signed(n[0])), i);
+        buf.writeInt16LE(clamp(signed(n[1])), i+2);
     }
-    
+
     self.i += buf.length / 2;
     self.t += buf.length / 2 / self.rate;
-    
+
     self._ticks ++;
     if (!self._ended && self._ticks % 50) this.push(buf);
     else if (!self._ended) nextTick(function () { self.push(buf) });
@@ -65,7 +66,7 @@ function mergeArgs (opts, args) {
     Object.keys(opts || {}).forEach(function (key) {
         args[key] = opts[key];
     });
-    
+
     return Object.keys(args).reduce(function (acc, key) {
         var dash = key.length === 1 ? '-' : '--';
         return acc.concat(dash + key, args[key]);
@@ -88,7 +89,7 @@ B.prototype.record = function (file, opts) {
         'r' : this.rate,
         't' : 's16',
     }).concat('-', '-q', '-o', file));
-    
+
     this.pipe(ps.stdin);
     return ps;
 };
